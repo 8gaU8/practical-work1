@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import { ConeGeometry } from 'three';
+import { MapControls } from 'three/addons/controls/MapControls.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
+import { seededRandom } from 'three/src/math/MathUtils';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
-import { seededRandom } from 'three/src/math/MathUtils.js';
+
 
 const genSolid = (geometry, color) => {
-    const meshMaterial = new THREE.MeshNormalMaterial({ transparent: true, opacity: 1 })
+    const meshMaterial = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide })
     const solid = new THREE.Mesh(geometry, meshMaterial)
     return solid
 }
@@ -151,49 +154,9 @@ const createPolyhedron = (size = basicSize, color = 0xffffff) => {
 }
 
 const addObject = (x, y, object) => {
-    console.log(object)
-    objects.push(object)
+    objects1.push(object)
 }
 
-const createText = (text = "Hello", size = 0.5, color = 0xffffff) => {
-    {
-        const loader = new FontLoader();
-        loader.load('fonts/helvetiker_regular.typeface.json')
-        l
-        // promisify font loading
-        // function loadFont(url) {
-        //     return new Promise((resolve, reject) => {
-        //         loader.load(url, resolve, undefined, reject);
-        //     });
-        // }
-
-        async function doit() {
-            const font = await loadFont('fonts/helvetiker_regular.typeface.json');  /* threejs.org: url */
-            const geometry = new TextGeometry('three.js', {
-                font: font,
-                size: 4.0,
-                depth: .2,
-                curveSegments: 12,
-                bevelEnabled: true,
-                bevelThickness: 0.15,
-                bevelSize: .3,
-                bevelSegments: 5,
-                color: 0x006699
-            });
-            const material =  new THREE.MeshNormalMaterial({ transparent: true, opacity: 1 }) 
-            const mesh = new THREE.Mesh(geometry, material);
-            geometry.computeBoundingBox();
-            geometry.boundingBox.getCenter(mesh.position).multiplyScalar(-1);
-
-            const parent = new THREE.Object3D();
-            parent.add(mesh);
-
-            // addObject(-1, -1, parent);
-            return parent
-        }
-        return doit();
-    }
-}
 
 const createCubeEdge = (size = basicSize, width = basicSize * 2, color = 0xffffff) => {
     const geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(size * 2, width, size * 2))
@@ -213,12 +176,59 @@ const createWireframeCube = (size = basicSize, color = 0xffffff) => {
     return line
 }
 
+function createTextMesh(text, color) {
+    const defaultOptions = {
+        size: 1,
+        depth: 0.5,
+        curveSegments: 12,
+        bevelEnabled: true,
+        bevelThickness: 0.03,
+        bevelSize: 0.02,
+        bevelSegments: 5,
+    }
+
+    const textPromiseObject = new Promise((resolve, reject) => {
+        const createTextMeshOnSuccess = (font) => {
+            //	Create  TextGeometry
+            const textGeometry = new TextGeometry(text,
+                {
+                    font: font,
+                    ...defaultOptions,
+                }
+            )
+
+            // Meshを作成して解決
+            const meshMaterial = new THREE.MeshBasicMaterial(
+                { side: THREE.DoubleSide, color: color }
+            )
+            const textMesh = new THREE.Mesh(textGeometry, meshMaterial)
+            resolve(textMesh);
+        }
+
+        const errorHandler = (error) => {
+            console.error('Failed to load font', error)
+            reject(error);
+        }
+
+        const fontLoader = new FontLoader();
+        const fontURL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r152/examples/fonts/helvetiker_regular.typeface.json'
+        // Load and create font
+        fontLoader.load(
+            fontURL,
+            createTextMeshOnSuccess,
+            undefined,
+            errorHandler
+        )
+    })
+    return textPromiseObject
+}
 
 
-const createAllPrimitives = (param, color = 0xffffff) => {
+const createAllPrimitives = async (param, text = 'hello', color = 0xffffff) => {
     const objects = []
     const basicParam = 0.5
-    // createText("Hello", 0.5, color)
+
+    objects.push(await createTextMesh(text, color));
     objects.push(createPlane(basicParam, param * basicParam, color))
     objects.push(createCircle(basicParam * param * 1.5, color))
     objects.push(createRing(basicParam * param / 2, basicParam, color))
@@ -245,7 +255,6 @@ const createAllPrimitives = (param, color = 0xffffff) => {
     const size = parseInt(Math.sqrt(objects.length)) + 1
     for (let i = 0; i < objects.length; i++)
     {
-        console.log(objects[i])
         const zPos = size * (i % size) - size
         const yPos = size * Math.floor(i / size) - size
         objects[i].position.z = zPos
@@ -276,91 +285,184 @@ const genCross = (size, opacity) => {
     const line2 = new THREE.Line(geometry2, lineMaterial)
     cross.add(line2)
     return cross
+
 }
 
-
-// Create all primitives
-const basicSize = 0.75
-
-const objects1 = createAllPrimitives(0.5, 0xff0000)
-for (let i = 0; i < objects1.length; i++)
-    objects1[i].position.x = 8
-
-const objects2 = createAllPrimitives(1.5, 0x00ff00)
-for (let i = 0; i < objects2.length; i++)
-    objects2[i].position.x = 0
-
-const objects3 = createAllPrimitives(1, 0x0000ff)
-for (let i = 0; i < objects3.length; i++)
-    objects3[i].position.x = -8
-
-let objects = objects1.concat(objects2)
-objects = objects.concat(objects3)
-
-// Setup scene, camera, and renderer
-const scene = new THREE.Scene()
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
-// camera.rotateX(
-camera.rotation.x = -Math.PI / 3.5
-camera.position.y = 25
-camera.position.z = 20
-
-const renderer = new THREE.WebGLRenderer()
-renderer.setSize(window.innerWidth, window.innerHeight)
-document.body.appendChild(renderer.domElement)
-
-// add to scene
-for (let i = 0; i < objects.length; i++)
-    scene.add(objects[i])
-
-// Add cross on the floor
-const crossSize = 0.5
-const nbCross = 20
-const baseGroup = new THREE.Group()
-const crossInterval = 2
-for (let i = 0; i < nbCross; i++)
-{
-    for (let j = 0; j < nbCross; j++)
+const genFloor = () => {
+    const crossSize = 0.5
+    const nbCross = 20
+    const baseGroup = new THREE.Group()
+    const crossInterval = 2
+    for (let i = 0; i < nbCross; i++)
     {
-        const k = 1.2
-        const distance = Math.sqrt((i / nbCross) ** 2 + (j / nbCross) ** 2)
-        const opacity = 1 - k * distance
+        for (let j = 0; j < nbCross; j++)
+        {
+            const k = 1.2
+            const distance = Math.sqrt((i / nbCross) ** 2 + (j / nbCross) ** 2)
+            const opacity = 1 - k * distance
 
-        const cross = genCross(crossSize, opacity)
-        cross.position.y = -10
+            const cross = genCross(crossSize, opacity)
+            cross.position.y = -10
 
-        cross.position.x = i * crossInterval
-        cross.position.z = j * crossInterval
-        baseGroup.add(cross)
+            cross.position.x = i * crossInterval
+            cross.position.z = j * crossInterval
+            baseGroup.add(cross)
 
-        const cross1 = cross.clone()
-        cross1.position.x = - i * crossInterval
-        cross1.position.z = j * crossInterval
-        baseGroup.add(cross1)
+            const cross1 = cross.clone()
+            cross1.position.x = - i * crossInterval
+            cross1.position.z = j * crossInterval
+            baseGroup.add(cross1)
 
-        const cross2 = cross.clone()
-        cross2.position.x = i * crossInterval
-        cross2.position.z = - j * crossInterval
-        baseGroup.add(cross2)
+            const cross2 = cross.clone()
+            cross2.position.x = i * crossInterval
+            cross2.position.z = - j * crossInterval
+            baseGroup.add(cross2)
 
-        const cross3 = cross.clone()
-        cross3.position.x = - i * crossInterval
-        cross3.position.z = - j * crossInterval
-        baseGroup.add(cross3)
+            const cross3 = cross.clone()
+            cross3.position.x = - i * crossInterval
+            cross3.position.z = - j * crossInterval
+            baseGroup.add(cross3)
+        }
+    }
+    return baseGroup
+}
+
+const initCamera = (cameraType) => {
+    if (cameraType === THREE.OrthographicCamera)
+    {
+        const frustumSize = 40;
+        const aspect = window.innerWidth / window.innerHeight;
+        const camera = new THREE.OrthographicCamera(frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, 0.1, 1000)
+        camera.rotation.x = -Math.PI / 3.5
+        camera.position.y = 10
+        camera.position.z = 10
+        return camera
+
+    } else if (cameraType === THREE.PerspectiveCamera)
+    {
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+        camera.rotation.x = -Math.PI / 3.5
+        camera.position.y = 25
+        camera.position.z = 25
+        return camera
+
+    } else
+    {
+        console.error("Unknown camera type")
+        return null
     }
 }
-scene.add(baseGroup)
 
 
-function animate() {
+const genObjects = async () => {
+    // Create all primitives
+    const basicSize = 0.75
+
+    const objects1 = await createAllPrimitives(0.5, 'IMLEX24', 0xff0000)
+    for (let i = 0; i < objects1.length; i++)
+        objects1[i].position.x = 8
+
+    const objects2 = await createAllPrimitives(1.5, 'Hello World', 0x00ff00)
+    for (let i = 0; i < objects2.length; i++)
+        objects2[i].position.x = 0
+
+    const objects3 = await createAllPrimitives(1, 'Saint-Étienne', 0x0000ff)
+    for (let i = 0; i < objects3.length; i++)
+        objects3[i].position.x = -8
+
+    const objects = objects1.concat(objects2, objects3)
+    return objects
+}
+
+const genScene = (objects) => {
+    // Setup scene, camera, and renderer
+    const scene = new THREE.Scene()
+    for (let i = 0; i < objects.length; i++)
+        scene.add(objects[i])
+    // Add cross on the floor
+    scene.add(genFloor())
+    return scene
+}
+
+const rotateStep = (objects, seed = 0.5) => {
     for (let i = 0; i < objects.length; i++)
     {
-        const randnum = seededRandom(i * 0.5)
+        const randnum = seededRandom(i * seed)
         const sign = randnum > 0.5 ? 1 : -1
-        objects[i].rotation.x -= 0.01 * sign
-        objects[i].rotation.z += (randnum * 0.1) * sign
-        objects[i].rotation.y -= (randnum * 0.11) * sign
+        const object = objects[i]
+        object.rotation.x -= 0.01 * sign
+        object.rotation.z += (randnum * 0.1) * sign
+        object.rotation.y -= (randnum * 0.15) * sign
     }
-    renderer.render(scene, camera)
 }
-renderer.setAnimationLoop(animate)
+
+const transformObjects = (objects, x, y, z) => {
+    for (let i = 0; i < objects.length; i++)
+    {
+        const object = objects[i]
+        object.position.x += x
+        object.position.y += y
+        object.position.z += z
+    }
+}
+
+const canvas = document.querySelector('#c');
+const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+renderer.setSize(window.innerWidth, window.innerHeight)
+
+
+const height = window.innerHeight
+const width = window.innerWidth / 2
+
+const objects1 = await genObjects()
+// transformObjects(objects1, -16, 0, 0)
+const scene1 = genScene(objects1)
+
+const objects2 = await genObjects()
+// transformObjects(objects2, 0, 0, 0)
+const scene2 = genScene(objects2)
+
+const camera1 = initCamera(THREE.PerspectiveCamera)
+camera1.position.x = 20
+const controls1 = new OrbitControls(camera1, renderer.domElement);
+controls1.update()
+// camera1.position.y = 100
+const camera2 = initCamera(THREE.OrthographicCamera)
+const controls2 = new MapControls(camera2, renderer.domElement);
+// camera2.position.x = -15
+controls2.enableDamping = true;
+controls2.update()
+
+
+
+controls1.enabled = true
+controls2.enabled = false
+
+const render = () => {
+    renderer.setScissorTest(true);
+
+    rotateStep(objects1, 0.5)
+    rotateStep(objects2, 1.5)
+
+    renderer.setScissor(0, 0, width, height)
+    controls1.update()
+    renderer.render(scene1, camera1)
+
+    renderer.setScissor(width, 0, width, height)
+    controls2.update()
+    renderer.render(scene2, camera2)
+
+    requestAnimationFrame(render)
+}
+requestAnimationFrame(render)
+
+const switchControls = (e) => {
+    const code = e.keyCode;
+    if (code == 32)
+    {
+        controls1.enabled = !controls1.enabled
+        controls2.enabled = !controls2.enabled
+    }
+
+}
+window.addEventListener('keydown', switchControls, false);
